@@ -2,7 +2,7 @@ import { Suspense } from "preact/compat";
 
 import { Deferred, ClientReferenceSymbol } from "./utils.js";
 
-const SuspendRequestedSymbol = Symbol.for("preact-rsc.SuspendRequested");
+const SuspendRequestedSymbol = Symbol.for("preact.suspend.requested");
 
 /**
  * @type {import("./api.js").renderToReadableStream}

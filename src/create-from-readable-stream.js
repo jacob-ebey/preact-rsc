@@ -20,10 +20,6 @@ export async function createFromReadableStream(stream, options) {
   let firstChunkDeferred = new Deferred();
 
   (async () => {
-    let done = false;
-    let line,
-      rest = "";
-
     const builtinsMap = new Map();
     const holesMap = new Map();
     const referencesDataMap = new Map();
@@ -40,18 +36,18 @@ export async function createFromReadableStream(stream, options) {
         Reference = ref;
       });
 
-      return (props) => {
+      const ClientReference = (props) => {
         if (Reference) {
           return h(Reference, props);
         }
         throw referencePromise;
       };
+      ClientReference.displayName = "ClientReference";
+      return ClientReference;
     };
 
-    while (!done) {
-      [done, line, rest] = await readToNewLine(reader, decoder, rest);
-
-      if (!done) {
+    for await (const line of makeTextFileLineIterator(reader)) {
+      if (line) {
         const chunkType =
           /** @type {import("./internal-types.js").RSCChunkType} */ (line[0]);
         const separatorIdx = line.indexOf(":");
@@ -99,33 +95,35 @@ export async function createFromReadableStream(stream, options) {
 
 /**
  * @param {ReadableStreamDefaultReader<Uint8Array>} reader
- * @param {TextDecoder} decoder
- * @param {string} previousRest
- * @returns {Promise<[boolean, string, string]>}
  */
-async function readToNewLine(reader, decoder, previousRest) {
-  let rest = previousRest;
-  let line = "";
-  let done = false;
-  while (true) {
-    const read = await reader.read();
-    if (read.done) {
-      done = true;
-      break;
-    }
+async function* makeTextFileLineIterator(reader) {
+  const utf8Decoder = new TextDecoder("utf-8");
+  let { value, done: readerDone } = await reader.read();
+  let chunk = value ? utf8Decoder.decode(value, { stream: true }) : "";
 
-    const chunk = decoder.decode(read.value, { stream: true });
-    const newlineIdx = chunk.indexOf("\n");
-    if (newlineIdx === -1) {
-      rest += chunk;
-    } else {
-      line += rest + chunk.slice(0, newlineIdx);
-      rest = chunk.slice(newlineIdx + 1);
-      break;
+  let re = /\r\n|\n|\r/gm;
+  let startIndex = 0;
+
+  for (;;) {
+    let result = re.exec(chunk);
+    if (!result) {
+      if (readerDone) {
+        break;
+      }
+      let remainder = chunk.substr(startIndex);
+      ({ value, done: readerDone } = await reader.read());
+      chunk =
+        remainder + (value ? utf8Decoder.decode(value, { stream: true }) : "");
+      startIndex = re.lastIndex = 0;
+      continue;
     }
+    yield chunk.substring(startIndex, result.index);
+    startIndex = re.lastIndex;
   }
-
-  return [done, line, rest];
+  if (startIndex < chunk.length) {
+    // last line didn't end in a newline char
+    yield chunk.substr(startIndex);
+  }
 }
 
 function parseId(type) {

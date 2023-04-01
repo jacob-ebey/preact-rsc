@@ -234,7 +234,7 @@ function Client({ children }) {
   return h("div", { className: "client" }, children);
 }
 Object.defineProperties(Client, {
-  $$typeof: { value: Symbol.for("preact.client.reference") },
+  $$typeof: { value: Symbol.for("preact.reference.client") },
   $$id: { value: "Client" },
 });
 

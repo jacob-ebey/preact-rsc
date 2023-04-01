@@ -1,6 +1,6 @@
 {
   "name": "preact-rsc",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "type": "module",
   "files": [
     "dist",
@@ -20,6 +20,7 @@
   "scripts": {
     "build": "microbundle -i src/index.js -o dist --external preact --format modern,cjs",
     "postbuild": "publint",
+    "start": "tsx --tsconfig tsconfig.json --watch integration/server.js",
     "test": "node --test test/*"
   },
   "peerDependencies": {
@@ -28,9 +29,11 @@
   "devDependencies": {
     "@jacob-ebey/preact-render-to-string": "0.0.0-streaming.2",
     "@types/node": "18.15.11",
+    "esbuild": "0.17.14",
     "microbundle": "0.15.1",
     "preact": "10.13.2",
     "publint": "0.1.11",
+    "tsx": "3.12.6",
     "type-fest": "3.7.2",
     "typescript": "5.0.2"
   }
