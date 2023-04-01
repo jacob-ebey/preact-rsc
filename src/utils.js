@@ -1,3 +1,5 @@
+export const ClientReferenceSymbol = Symbol.for("preact.client.reference");
+
 /**
  * @template T
  */

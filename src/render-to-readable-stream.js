@@ -1,6 +1,6 @@
 import { Suspense } from "preact/compat";
 
-import { Deferred } from "./utils.js";
+import { Deferred, ClientReferenceSymbol } from "./utils.js";
 
 const SuspendRequestedSymbol = Symbol.for("preact-rsc.SuspendRequested");
 
@@ -142,6 +142,9 @@ async function renderVNode(vnode, context) {
  * @returns {Promise<import("./internal-types.js").RSCElement>}
  */
 async function renderReference(type, props, context) {
+  if (type.$$typeof !== ClientReferenceSymbol) {
+    throw new Error(`Unknown reference type: ${type.$$typeof}`);
+  }
   const { children, ...rest } = props;
 
   const id = context.ensureReference(type);
