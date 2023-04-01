@@ -154,7 +154,7 @@ async function renderReference(type, props, context) {
     `@${id}`,
     null,
     {
-      ...rest,
+      ...normalizeProperties(rest),
       children: await renderChildren(children, context),
     },
   ];
@@ -168,14 +168,12 @@ async function renderReference(type, props, context) {
  */
 async function renderElement(type, props, context) {
   const { children, ...rest } = props;
-  normalizeProperties(rest);
-
   return [
     "$",
     type,
     null,
     {
-      ...rest,
+      ...normalizeProperties(rest, true),
       children: await renderChildren(children, context),
     },
   ];
@@ -301,20 +299,31 @@ function isPromiseLike(value) {
   );
 }
 
-function normalizeProperties(props) {
+function normalizeProperties(props, elementMode) {
   const { children, ...rest } = props;
+  const result = {};
 
-  for (const [key, value] of Object.entries(rest)) {
+  for (let [key, value] of Object.entries(rest)) {
     switch (key) {
+      case "key":
+      case "ref":
+      case "__self":
+      case "__source":
+        continue;
       case "className":
-        props.class = value;
-        delete props[key];
+        if (!elementMode) break;
+        if ("class" in props) continue;
+        key = "class";
         break;
       case "htmlFor":
-        props.for = value;
-        delete props[key];
+        if (!elementMode) break;
+        if ("for" in props) continue;
+        key = "for";
         break;
-      // TODO: handle the rest of the special cased properties
     }
+
+    result[key] = value;
   }
+
+  return result;
 }
