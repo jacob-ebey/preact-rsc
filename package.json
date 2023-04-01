@@ -20,7 +20,7 @@
   "scripts": {
     "build": "microbundle -i src/index.js -o dist --external preact --format modern,cjs",
     "postbuild": "publint",
-    "start": "tsx --tsconfig tsconfig.json --watch integration/server.js",
+    "start": "tsx --tsconfig tsconfig.json --watch integration/server.jsx",
     "test": "node --test test/*"
   },
   "peerDependencies": {
