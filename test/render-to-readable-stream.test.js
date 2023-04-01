@@ -163,6 +163,24 @@ it("should render suspense with hole", async () => {
   ]);
 });
 
+it("should render hole for client component", async () => {
+  const stream = renderToReadableStream(
+    h(Client, null, h(Hello, { name: "world" })),
+    {
+      getClientReferenceData,
+    }
+  );
+  const chunks = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.from(chunk).toString("utf-8"));
+  }
+
+  assert.deepEqual(chunks, [
+    `M1:{"id":"/client.js","name":"Client"}\n`,
+    `J0:["$","@1",null,{"children":[["$","div",null,{"children":["Hello world!"]}]]}]\n`,
+  ]);
+});
+
 function Hello({ name }) {
   return h("div", null, `Hello ${name}!`);
 }
@@ -173,4 +191,21 @@ function Wrapper({ children }) {
 
 async function AsyncHello({ name }) {
   return h("div", null, `Hello ${await name}!`);
+}
+
+function Client({ children }) {
+  return h("div", { className: "client" }, children);
+}
+Object.defineProperties(Client, {
+  $$typeof: { value: Symbol.for("preact.client.reference") },
+  $$id: { value: "Client" },
+});
+
+function getClientReferenceData(id) {
+  switch (id) {
+    case "Client":
+      return { id: "/client.js", name: "Client" };
+    default:
+      throw new Error(`Unknown client reference: ${id}`);
+  }
 }

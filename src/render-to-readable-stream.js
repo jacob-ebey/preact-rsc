@@ -7,7 +7,7 @@ const SuspendRequestedSymbol = Symbol.for("preact-rsc.SuspendRequested");
 /**
  * @type {import("./api.js").renderToReadableStream}
  */
-export function renderToReadableStream(vnode) {
+export function renderToReadableStream(vnode, options) {
   return new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
@@ -16,6 +16,8 @@ export function renderToReadableStream(vnode) {
       let _nextId = 0;
       /** @type {Map<string, number>} */
       let sentBuiltins = new Map();
+      /** @type {Map<string, number>} */
+      let sentReferences = new Map();
 
       /** @type {import("./internal-types.js").RenderContext} */
       const context = {
@@ -30,6 +32,20 @@ export function renderToReadableStream(vnode) {
           id = context.nextId();
           sentBuiltins.set(name, id);
           context.enqueueChunk(["S", id, name]);
+          return id;
+        },
+        ensureReference(type) {
+          let id = sentReferences.get(type.$$id);
+          if (typeof id === "number") return id;
+          if (!options || !options.getClientReferenceData) {
+            throw new Error(
+              "Missing getClientReferenceData option for client component"
+            );
+          }
+          id = context.nextId();
+          sentReferences.set(type.$$id, id);
+          const data = options.getClientReferenceData(type.$$id);
+          context.enqueueChunk(["M", id, data]);
           return id;
         },
         enqueuePromise(promise) {
@@ -96,11 +112,22 @@ async function renderVNode(vnode, context) {
     return renderVNode(await vnode, context);
   }
 
-  const { type, props } = vnode;
+  const { props } = vnode;
+  const type =
+    /** @type {string | (import("preact").ComponentType & { $$typeof: unknown; $$id: string }) | { $$typeof: unknown; $$id: string }} */ (
+      vnode.type
+    );
   switch (typeof type) {
     case "string":
       return renderElement(type, props, context);
+    case "object":
     case "function":
+      if (type.$$typeof) {
+        return renderReference(type, props, context);
+      }
+      if (typeof type === "object") {
+        throw new Error(`Unknown vnode type: ${type}`);
+      }
       return renderComponent(type, props, context);
     default:
       throw new Error(`Unknown vnode type: ${type}`);
@@ -108,9 +135,32 @@ async function renderVNode(vnode, context) {
 }
 
 /**
+ *
+ * @param {{ $$typeof: unknown; $$id: string }} type
+ * @param {{ children?: import("preact").ComponentChildren }} props
+ * @param {import("./internal-types.js").RenderContext} context
+ * @returns {Promise<import("./internal-types.js").RSCElement>}
+ */
+async function renderReference(type, props, context) {
+  const { children, ...rest } = props;
+
+  const id = context.ensureReference(type);
+
+  return [
+    "$",
+    `@${id}`,
+    null,
+    {
+      ...rest,
+      children: await renderChildren(children, context),
+    },
+  ];
+}
+
+/**
  * @param {string} type
  * @param {{ children?: import("preact").ComponentChildren }} props
- * @param {*} context
+ * @param {import("./internal-types.js").RenderContext} context
  * @returns {Promise<import("./internal-types.js").RSCElement>}
  */
 async function renderElement(type, props, context) {

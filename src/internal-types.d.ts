@@ -30,6 +30,7 @@ export type RSCChunk = [RSCChunkType, number, Jsonifiable];
 export interface RenderContext {
   enqueueChunk(chunk: RSCChunk): void;
   ensureBuiltin(name: string): number;
+  ensureReference(type: { $$typeof: unknown; $$id: string }): number;
   enqueuePromise(promise: Promise<void>): void;
   nextId(): number;
   requestSuspense(): void;

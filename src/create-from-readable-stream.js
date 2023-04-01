@@ -9,7 +9,7 @@ const builtinsToComponent = {
 };
 
 /** @type {import("./api.js").createFromReadableStream} */
-export async function createFromReadableStream(stream) {
+export async function createFromReadableStream(stream, options) {
   // Read the stream in chunks separated by newlines
   const reader = stream.getReader();
   const decoder = new TextDecoder();
@@ -26,6 +26,27 @@ export async function createFromReadableStream(stream) {
 
     const builtinsMap = new Map();
     const holesMap = new Map();
+    const referencesDataMap = new Map();
+
+    const getClientReference = (data) => {
+      if (!options || !options.getClientReference) {
+        throw new Error("Missing getClientReference option");
+      }
+
+      let Reference;
+      const referencePromise = Promise.resolve(
+        options.getClientReference(data)
+      ).then((ref) => {
+        Reference = ref;
+      });
+
+      return (props) => {
+        if (Reference) {
+          return h(Reference, props);
+        }
+        throw referencePromise;
+      };
+    };
 
     while (!done) {
       [done, line, rest] = await readToNewLine(reader, decoder, rest);
@@ -43,6 +64,7 @@ export async function createFromReadableStream(stream) {
 
         switch (chunkType) {
           case "M":
+            referencesDataMap.set(chunkId, chunkData);
             break;
           case "S":
             if (!builtinsToComponent[chunkData]) {
@@ -51,10 +73,14 @@ export async function createFromReadableStream(stream) {
             builtinsMap.set(chunkId, chunkData);
             break;
           case "J":
-            console.log(holesMap);
-            const node = createVNode(chunkData, builtinsMap, holesMap);
+            const node = createVNode(
+              chunkData,
+              builtinsMap,
+              holesMap,
+              referencesDataMap,
+              getClientReference
+            );
             if (sentFirstChunk) {
-              console.log("resolving", chunkId);
               holesMap.get(chunkId).resolve(node);
               break;
             }
@@ -115,8 +141,16 @@ function parseId(type) {
  * @param {import("./internal-types.js").RSCElement} chunkData
  * @param {Map<number, string>} builtinsMap
  * @param {Map<number, Deferred>} holesMap
+ * @param {Map<number, unknown>} referencesDataMap
+ * @param {(data: unknown) => import("preact").ComponentType<any>} getClientReference
  */
-function createVNode(chunkData, builtinsMap, holesMap) {
+function createVNode(
+  chunkData,
+  builtinsMap,
+  holesMap,
+  referencesDataMap,
+  getClientReference
+) {
   if (typeof chunkData !== "object" || !Array.isArray(chunkData)) {
     return chunkData;
   }
@@ -134,14 +168,22 @@ function createVNode(chunkData, builtinsMap, holesMap) {
 
       const props = chunkData[3];
       const children = props.children?.map((child) =>
-        createVNode(child, builtinsMap, holesMap)
+        createVNode(
+          child,
+          builtinsMap,
+          holesMap,
+          referencesDataMap,
+          getClientReference
+        )
       );
 
       if (builtin === Suspense) {
         /** @type {any} **/ (props).fallback = createVNode(
           chunkData[2],
           builtinsMap,
-          holesMap
+          holesMap,
+          referencesDataMap,
+          getClientReference
         );
       }
 
@@ -152,6 +194,25 @@ function createVNode(chunkData, builtinsMap, holesMap) {
     }
     case "@": {
       const id = parseId(type);
+
+      if (referencesDataMap.has(id)) {
+        const Reference = getClientReference(referencesDataMap.get(id));
+        const props = chunkData[3];
+        const children = props.children?.map((child) =>
+          createVNode(
+            child,
+            builtinsMap,
+            holesMap,
+            referencesDataMap,
+            getClientReference
+          )
+        );
+        return h(Reference, {
+          ...props,
+          children,
+        });
+      }
+
       const holeDeferred = new Deferred();
       holesMap.set(id, holeDeferred);
       let filling;
@@ -172,7 +233,13 @@ function createVNode(chunkData, builtinsMap, holesMap) {
     default: {
       const props = chunkData[3];
       const children = props.children?.map((child) =>
-        createVNode(child, builtinsMap, holesMap)
+        createVNode(
+          child,
+          builtinsMap,
+          holesMap,
+          referencesDataMap,
+          getClientReference
+        )
       );
       return h(type, {
         ...props,

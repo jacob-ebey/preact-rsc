@@ -9,5 +9,5 @@ TODO:
 - [x] Synchronous component transport and recreation
 - [x] Async component transport and recreation
 - [x] Suspense boundaries
-- [ ] Support for client component holes
+- [x] Support for client component holes
 - [ ] Support for client hydration

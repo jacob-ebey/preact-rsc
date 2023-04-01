@@ -179,7 +179,6 @@ it("should render suspense with hole for async component", async () => {
     chunks.push(Buffer.from(chunk).toString("utf-8"));
   }
 
-  console.log(JSON.stringify(chunks));
   assert.equal(
     `<!--preact-island:58--><div>Loading...</div><!--/preact-island:58-->`,
     chunks[0]
@@ -196,6 +195,29 @@ it("should render suspense with hole for async component", async () => {
   assert.equal(chunks[4], `</div>`);
 });
 
+it("should render hole for client component", async () => {
+  const stream = renderToReadableStream(
+    h(Client, null, h(Hello, { name: "world" })),
+    {
+      getClientReferenceData,
+    }
+  );
+  const vnode = await createFromReadableStream(stream, {
+    getClientReference(data) {
+      return Client;
+    },
+  });
+  const htmlStream = renderToHTMLReadableStream(vnode);
+  const chunks = [];
+  for await (const chunk of htmlStream) {
+    chunks.push(Buffer.from(chunk).toString("utf-8"));
+  }
+
+  assert.deepEqual(chunks, [
+    `<div class="client"><div>Hello world!</div></div>`,
+  ]);
+});
+
 function Hello({ name }) {
   return h("div", null, `Hello ${name}!`);
 }
@@ -206,4 +228,21 @@ function Wrapper({ children }) {
 
 async function AsyncHello({ name }) {
   return h("div", null, `Hello ${await name}!`);
+}
+
+function Client({ children }) {
+  return h("div", { className: "client" }, children);
+}
+Object.defineProperties(Client, {
+  $$typeof: { value: Symbol.for("preact.client.reference") },
+  $$id: { value: "Client" },
+});
+
+function getClientReferenceData(id) {
+  switch (id) {
+    case "Client":
+      return { id: "/client.js", name: "Client" };
+    default:
+      throw new Error(`Unknown client reference: ${id}`);
+  }
 }
