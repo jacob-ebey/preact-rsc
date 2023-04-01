@@ -8,7 +8,7 @@ export function App() {
   return (
     <main>
       <h1>Hello, World!</h1>
-      <Counter />
+      <Counter initialValue={2} />
       <Suspense fallback={<h1>Loading...</h1>}>
         <SlowComponent />
       </Suspense>

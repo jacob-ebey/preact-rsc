@@ -225,7 +225,7 @@ function createVNode(
         }
         throw promiseToThrow;
       };
-      Hole.displayName = `Hole${id}`;
+      Hole.displayName = `AsyncComponent${id}`;
       return h(Hole, {});
     }
     default: {
