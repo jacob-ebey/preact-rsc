@@ -146,14 +146,27 @@ class RSCTransform extends TransformStream {
       start(controller) {
         const decoder = new TextDecoder();
         const encoder = new TextEncoder();
-        this.encoder = encoder;
+        const queuedRSCChunks = [];
         this.deferred = new Deferred();
-        this.queuedRSCChunks = [];
+
+        this.flushRSCChunks = (close = false) => {
+          while (queuedRSCChunks.length) {
+            controller.enqueue(queuedRSCChunks.shift());
+          }
+          if (close) {
+            controller.enqueue(
+              encoder.encode(`<script>
+  window.__rscController.close();
+</script>`)
+            );
+          }
+        };
+
         (async () => {
           for await (const chunk of rscStream) {
             const rscChunk = decoder.decode(chunk, { stream: true });
             if (rscChunk) {
-              this.queuedRSCChunks.push(
+              queuedRSCChunks.push(
                 encoder.encode(`<script>
   window.__rscController.enqueue(window.__rscEncoder.encode(${JSON.stringify(
     rscChunk
@@ -167,20 +180,11 @@ class RSCTransform extends TransformStream {
       },
       async transform(chunk, controller) {
         controller.enqueue(chunk);
-        while (this.queuedRSCChunks.length) {
-          controller.enqueue(this.queuedRSCChunks.shift());
-        }
+        this.flushRSCChunks();
       },
-      async flush(controller) {
+      async flush() {
         await this.deferred.promise;
-        while (this.queuedRSCChunks.length) {
-          controller.enqueue(this.queuedRSCChunks.shift());
-        }
-        controller.enqueue(
-          this.encoder.encode(`<script>
-  window.__rscController.close();
-</script>`)
-        );
+        this.flushRSCChunks(true);
       },
     });
   }
