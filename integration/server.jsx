@@ -146,6 +146,7 @@ class RSCTransform extends TransformStream {
       start(controller) {
         const decoder = new TextDecoder();
         const encoder = new TextEncoder();
+        this.encoder = encoder;
         this.deferred = new Deferred();
         this.queuedRSCChunks = [];
         (async () => {
@@ -170,8 +171,16 @@ class RSCTransform extends TransformStream {
           controller.enqueue(this.queuedRSCChunks.shift());
         }
       },
-      async flush() {
+      async flush(controller) {
         await this.deferred.promise;
+        while (this.queuedRSCChunks.length) {
+          controller.enqueue(this.queuedRSCChunks.shift());
+        }
+        controller.enqueue(
+          this.encoder.encode(`<script>
+  window.__rscController.close();
+</script>`)
+        );
       },
     });
   }
